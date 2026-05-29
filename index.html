@@ -43,9 +43,7 @@
 
       overflow: hidden;
 
-      background: transparent;
-
-      touch-action: manipulation;
+      background: white;
     }
 
     .slide-img {
@@ -59,32 +57,19 @@
 
       opacity: 0;
 
-      transition:
-        opacity 280ms ease-in-out,
-        transform 280ms ease-in-out;
-
-      transform: scale(1.01);
-
-      will-change: opacity, transform;
+      transition: opacity 220ms ease-in-out;
 
       user-select: none;
       -webkit-user-drag: none;
 
       pointer-events: none;
 
-      background: transparent;
+      background: white;
     }
 
     .slide-img.active {
       opacity: 1;
       z-index: 2;
-
-      transform: scale(1);
-    }
-
-    .slide-img.previous {
-      opacity: 1;
-      z-index: 1;
     }
 
     .loading,
@@ -96,7 +81,7 @@
       align-items: center;
       justify-content: center;
 
-      color: white;
+      color: #333;
 
       text-align: center;
 
@@ -106,14 +91,14 @@
     .counter {
       position: absolute;
 
-      right: 16px;
-      bottom: 16px;
+      right: 14px;
+      bottom: 14px;
 
       z-index: 50;
 
-      color: rgba(255,255,255,0.92);
+      color: #222;
 
-      background: rgba(0,0,0,0.30);
+      background: rgba(255,255,255,0.92);
 
       padding: 7px 12px;
 
@@ -121,7 +106,8 @@
 
       font-size: 13px;
 
-      backdrop-filter: blur(8px);
+      box-shadow:
+        0 2px 10px rgba(0,0,0,0.10);
     }
 
     .nav-button {
@@ -138,40 +124,41 @@
       border: none;
       border-radius: 50%;
 
-      background: rgba(255,255,255,0.18);
+      background: rgba(255,255,255,0.96);
 
-      color: white;
+      color: #111;
 
       font-size: 28px;
       font-weight: bold;
 
       cursor: pointer;
 
-      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
 
       transition:
-        background 0.2s ease,
-        transform 0.2s ease,
-        opacity 0.2s ease;
+        background 0.18s ease,
+        transform 0.18s ease;
 
       box-shadow:
-        0 4px 18px rgba(0,0,0,0.18);
+        0 3px 14px rgba(0,0,0,0.14);
     }
 
     .nav-button:hover {
-      background: rgba(255,255,255,0.32);
+      background: white;
 
       transform:
         translateY(-50%)
-        scale(1.05);
+        scale(1.04);
     }
 
     .prev-button {
-      left: 10px;
+      left: 12px;
     }
 
     .next-button {
-      right: 10px;
+      right: 12px;
     }
 
     @media (max-width: 700px) {
@@ -267,8 +254,6 @@
         imgA = createImageElement();
         imgB = createImageElement();
 
-        imgA.classList.add("active");
-
         slideshow.appendChild(imgA);
         slideshow.appendChild(imgB);
 
@@ -281,7 +266,12 @@
 
         createNavigationButtons(slideshow);
 
+        // initial image
         imgA.src = images[0];
+
+        imgA.onload = () => {
+          imgA.classList.add("active");
+        };
 
         updateCounter();
 
@@ -461,34 +451,18 @@
       const nextImg =
         showingA ? imgB : imgA;
 
+      nextImg.classList.remove("active");
+
       nextImg.src =
         images[currentIndex];
 
       nextImg.onload = () => {
 
-        activeImg.classList.remove(
-          "active"
-        );
+        // fade new image in
+        nextImg.classList.add("active");
 
-        activeImg.classList.add(
-          "previous"
-        );
-
-        nextImg.classList.remove(
-          "previous"
-        );
-
-        nextImg.classList.add(
-          "active"
-        );
-
-        setTimeout(() => {
-
-          activeImg.classList.remove(
-            "previous"
-          );
-
-        }, 280);
+        // fade old image out
+        activeImg.classList.remove("active");
 
         showingA = !showingA;
 
