@@ -1,43 +1,74 @@
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Embedded Photo Slideshow</title>
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+
+  <title>College Corps Photo Slideshow</title>
 
   <style>
-    html, body {
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
       margin: 0;
       padding: 0;
       width: 100%;
       height: 100%;
+      min-height: 100%;
       background: #111;
       overflow: hidden;
       font-family: Arial, sans-serif;
     }
 
+    body {
+      position: relative;
+    }
+
     .slideshow {
       position: relative;
-      width: 100vw;
-      height: 100vh;
+      width: 100%;
+      height: 100%;
       background: #111;
       overflow: hidden;
+      touch-action: manipulation;
     }
 
     .slide-img {
       position: absolute;
       inset: 0;
+
       width: 100%;
       height: 100%;
+
       object-fit: contain;
+
       background: #111;
+
       opacity: 0;
-      transition: opacity 350ms ease-in-out;
+
+      transition:
+        opacity 300ms ease-in-out,
+        transform 300ms ease-in-out;
+
+      transform: scale(1.01);
+
+      will-change: opacity, transform;
+
+      user-select: none;
+      -webkit-user-drag: none;
     }
 
     .slide-img.active {
       opacity: 1;
       z-index: 2;
+      transform: scale(1);
     }
 
     .slide-img.previous {
@@ -47,294 +78,426 @@
 
     .loading,
     .error {
-      color: white;
-      height: 100vh;
+      position: absolute;
+      inset: 0;
+
       display: flex;
-      justify-content: center;
       align-items: center;
+      justify-content: center;
+
+      color: white;
       text-align: center;
+
       padding: 20px;
-      box-sizing: border-box;
     }
 
     .counter {
       position: absolute;
       right: 14px;
-      bottom: 10px;
-      color: rgba(255,255,255,0.75);
-      background: rgba(0,0,0,0.35);
-      padding: 6px 10px;
+      bottom: 12px;
+
+      z-index: 30;
+
+      color: rgba(255,255,255,0.85);
+
+      background: rgba(0,0,0,0.45);
+
+      padding: 7px 12px;
+
       border-radius: 999px;
+
       font-size: 13px;
-      z-index: 10;
+
+      backdrop-filter: blur(6px);
     }
 
     .nav-button {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 20;
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
 
-  width: 52px;
-  height: 52px;
+      z-index: 30;
 
-  border: none;
-  border-radius: 50%;
+      width: 52px;
+      height: 52px;
 
-  background: rgba(0,0,0,0.35);
-  color: white;
+      border: none;
+      border-radius: 50%;
 
-  font-size: 26px;
-  cursor: pointer;
+      background: rgba(0,0,0,0.35);
 
-  backdrop-filter: blur(4px);
+      color: white;
 
-  transition: background 0.2s ease;
-}
+      font-size: 26px;
 
-.nav-button:hover {
-  background: rgba(0,0,0,0.6);
-}
+      cursor: pointer;
 
-.prev-button {
-  left: 14px;
-}
+      backdrop-filter: blur(4px);
 
-.next-button {
-  right: 14px;
-}
+      transition:
+        background 0.2s ease,
+        opacity 0.2s ease;
+    }
 
-@media (max-width: 700px) {
-  .nav-button {
-    width: 44px;
-    height: 44px;
-    font-size: 22px;
-  }
-}
+    .nav-button:hover {
+      background: rgba(0,0,0,0.65);
+    }
+
+    .prev-button {
+      left: 14px;
+    }
+
+    .next-button {
+      right: 14px;
+    }
+
+    @media (max-width: 700px) {
+      .nav-button {
+        width: 44px;
+        height: 44px;
+        font-size: 22px;
+      }
+
+      .counter {
+        font-size: 12px;
+      }
+    }
   </style>
 </head>
 
 <body>
+
   <div class="slideshow" id="slideshow">
-    <div class="loading">Loading slideshow...</div>
+    <div class="loading">
+      Loading slideshow...
+    </div>
   </div>
 
   <script>
-  const IMAGE_JSON = "images.json";
 
-  const SLIDE_TIME = 2200;
-  const FADE_TIME = 300;
-  const PRELOAD_AHEAD = 5;
+    const IMAGE_JSON = "images.json";
 
-  let images = [];
-  let currentIndex = 0;
-  let showingA = true;
-  let slideshowInterval;
+    const SLIDE_TIME = 2200;
 
-  let imgA;
-  let imgB;
-  let counter;
+    const PRELOAD_AHEAD = 6;
 
-  async function startSlideshow() {
-    const slideshow = document.getElementById("slideshow");
+    let images = [];
 
-    try {
-      const response = await fetch(IMAGE_JSON, {
-        cache: "no-store"
+    let currentIndex = 0;
+
+    let showingA = true;
+
+    let slideshowInterval;
+
+    let imgA;
+    let imgB;
+    let counter;
+
+    async function startSlideshow() {
+
+      const slideshow =
+        document.getElementById("slideshow");
+
+      try {
+
+        const response =
+          await fetch(IMAGE_JSON, {
+            cache: "no-store"
+          });
+
+        if (!response.ok) {
+          throw new Error(
+            "Could not load images.json"
+          );
+        }
+
+        images = await response.json();
+
+        images = images
+          .map(item =>
+            typeof item === "string"
+              ? item
+              : item.image
+          )
+          .filter(Boolean)
+          .filter(src =>
+            /\.(jpg|jpeg|png|gif|webp)$/i.test(src)
+          );
+
+        if (images.length === 0) {
+          throw new Error("No images found");
+        }
+
+        shuffleArray(images);
+
+        slideshow.innerHTML = "";
+
+        imgA = createImageElement();
+        imgB = createImageElement();
+
+        imgA.classList.add("active");
+
+        slideshow.appendChild(imgA);
+        slideshow.appendChild(imgB);
+
+        counter = document.createElement("div");
+        counter.className = "counter";
+
+        slideshow.appendChild(counter);
+
+        createNavigationButtons(slideshow);
+
+        imgA.src = images[0];
+
+        updateCounter();
+
+        preloadUpcomingImages();
+
+        if (images.length > 1) {
+          startAutoSlide();
+        }
+
+        setupKeyboardControls();
+
+        setupClickControls(slideshow);
+
+      } catch (error) {
+
+        slideshow.innerHTML = `
+          <div class="error">
+            Slideshow could not be loaded.
+          </div>
+        `;
+
+        console.error(error);
+      }
+    }
+
+    function createImageElement() {
+
+      const img =
+        document.createElement("img");
+
+      img.className = "slide-img";
+
+      img.draggable = false;
+
+      img.alt = "Slideshow image";
+
+      return img;
+    }
+
+    function createNavigationButtons(slideshow) {
+
+      const prevBtn =
+        document.createElement("button");
+
+      prevBtn.innerHTML = "❮";
+
+      prevBtn.className =
+        "nav-button prev-button";
+
+      const nextBtn =
+        document.createElement("button");
+
+      nextBtn.innerHTML = "❯";
+
+      nextBtn.className =
+        "nav-button next-button";
+
+      prevBtn.addEventListener("click", e => {
+        e.stopPropagation();
+        previousSlide();
+        restartAutoSlide();
       });
 
-      if (!response.ok) {
-        throw new Error("Could not load images.json");
-      }
+      nextBtn.addEventListener("click", e => {
+        e.stopPropagation();
+        nextSlide();
+        restartAutoSlide();
+      });
 
-      images = await response.json();
+      slideshow.appendChild(prevBtn);
+      slideshow.appendChild(nextBtn);
+    }
 
-      images = images
-        .map(item => typeof item === "string" ? item : item.image)
-        .filter(Boolean)
-        .filter(src =>
-          /\.(jpg|jpeg|png|gif|webp)$/i.test(src)
+    function setupKeyboardControls() {
+
+      document.addEventListener(
+        "keydown",
+        e => {
+
+          if (e.key === "ArrowRight") {
+            nextSlide();
+            restartAutoSlide();
+          }
+
+          if (e.key === "ArrowLeft") {
+            previousSlide();
+            restartAutoSlide();
+          }
+        }
+      );
+    }
+
+    function setupClickControls(slideshow) {
+
+      slideshow.addEventListener(
+        "click",
+        e => {
+
+          if (
+            e.target.classList.contains(
+              "nav-button"
+            )
+          ) {
+            return;
+          }
+
+          const x = e.clientX;
+
+          const width =
+            window.innerWidth;
+
+          if (x > width / 2) {
+            nextSlide();
+          } else {
+            previousSlide();
+          }
+
+          restartAutoSlide();
+        }
+      );
+    }
+
+    function startAutoSlide() {
+
+      slideshowInterval =
+        setInterval(() => {
+
+          nextSlide();
+
+        }, SLIDE_TIME);
+    }
+
+    function restartAutoSlide() {
+
+      clearInterval(slideshowInterval);
+
+      startAutoSlide();
+    }
+
+    function nextSlide() {
+
+      currentIndex =
+        (currentIndex + 1) %
+        images.length;
+
+      changeSlide();
+    }
+
+    function previousSlide() {
+
+      currentIndex =
+        (currentIndex - 1 + images.length) %
+        images.length;
+
+      changeSlide();
+    }
+
+    function changeSlide() {
+
+      const activeImg =
+        showingA ? imgA : imgB;
+
+      const nextImg =
+        showingA ? imgB : imgA;
+
+      nextImg.src =
+        images[currentIndex];
+
+      nextImg.onload = () => {
+
+        activeImg.classList.remove(
+          "active"
         );
 
-      if (images.length === 0) {
-        throw new Error("No images found");
-      }
+        activeImg.classList.add(
+          "previous"
+        );
 
-      shuffleArray(images);
+        nextImg.classList.remove(
+          "previous"
+        );
 
-      slideshow.innerHTML = "";
+        nextImg.classList.add(
+          "active"
+        );
 
-      imgA = document.createElement("img");
-      imgB = document.createElement("img");
+        setTimeout(() => {
 
-      imgA.className = "slide-img active";
-      imgB.className = "slide-img";
+          activeImg.classList.remove(
+            "previous"
+          );
 
-      slideshow.appendChild(imgA);
-      slideshow.appendChild(imgB);
+        }, 300);
 
-      counter = document.createElement("div");
-      counter.className = "counter";
-      slideshow.appendChild(counter);
+        showingA = !showingA;
 
-      createNavigationButtons(slideshow);
+        updateCounter();
 
-      imgA.src = images[0];
-
-      updateCounter();
-      preloadUpcomingImages();
-
-      if (images.length > 1) {
-        startAutoSlide();
-      }
-
-      setupKeyboardControls();
-
-      setupClickControls(slideshow);
-
-    } catch (error) {
-      slideshow.innerHTML = `
-        <div class="error">
-          Slideshow could not be loaded.
-        </div>
-      `;
-
-      console.error(error);
+        preloadUpcomingImages();
+      };
     }
-  }
 
-  function createNavigationButtons(slideshow) {
-    const prevBtn = document.createElement("button");
-    prevBtn.innerHTML = "❮";
-    prevBtn.className = "nav-button prev-button";
+    function preloadUpcomingImages() {
 
-    const nextBtn = document.createElement("button");
-    nextBtn.innerHTML = "❯";
-    nextBtn.className = "nav-button next-button";
+      for (
+        let i = 1;
+        i <= PRELOAD_AHEAD;
+        i++
+      ) {
 
-    prevBtn.addEventListener("click", () => {
-      previousSlide();
-      restartAutoSlide();
-    });
+        const preloadIndex =
+          (currentIndex + i) %
+          images.length;
 
-    nextBtn.addEventListener("click", () => {
-      nextSlide();
-      restartAutoSlide();
-    });
+        const preloadImg =
+          new Image();
 
-    slideshow.appendChild(prevBtn);
-    slideshow.appendChild(nextBtn);
-  }
-
-  function setupKeyboardControls() {
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "ArrowRight") {
-        nextSlide();
-        restartAutoSlide();
+        preloadImg.src =
+          images[preloadIndex];
       }
-
-      if (e.key === "ArrowLeft") {
-        previousSlide();
-        restartAutoSlide();
-      }
-    });
-  }
-
-  function setupClickControls(slideshow) {
-    slideshow.addEventListener("click", (e) => {
-
-      if (e.target.classList.contains("nav-button")) {
-        return;
-      }
-
-      const x = e.clientX;
-      const width = window.innerWidth;
-
-      if (x > width / 2) {
-        nextSlide();
-      } else {
-        previousSlide();
-      }
-
-      restartAutoSlide();
-    });
-  }
-
-  function startAutoSlide() {
-    slideshowInterval = setInterval(() => {
-      nextSlide();
-    }, SLIDE_TIME);
-  }
-
-  function restartAutoSlide() {
-    clearInterval(slideshowInterval);
-    startAutoSlide();
-  }
-
-  function nextSlide() {
-    currentIndex = (currentIndex + 1) % images.length;
-    changeSlide();
-  }
-
-  function previousSlide() {
-    currentIndex =
-      (currentIndex - 1 + images.length) % images.length;
-
-    changeSlide();
-  }
-
-  function changeSlide() {
-    const activeImg = showingA ? imgA : imgB;
-    const nextImg = showingA ? imgB : imgA;
-
-    nextImg.src = images[currentIndex];
-
-    nextImg.onload = () => {
-      activeImg.classList.remove("active");
-      activeImg.classList.add("previous");
-
-      nextImg.classList.remove("previous");
-      nextImg.classList.add("active");
-
-      setTimeout(() => {
-        activeImg.classList.remove("previous");
-      }, FADE_TIME);
-
-      showingA = !showingA;
-
-      updateCounter();
-      preloadUpcomingImages();
-    };
-  }
-
-  function preloadUpcomingImages() {
-    for (let i = 1; i <= PRELOAD_AHEAD; i++) {
-
-      const preloadIndex =
-        (currentIndex + i) % images.length;
-
-      const preloadImg = new Image();
-
-      preloadImg.src = images[preloadIndex];
     }
-  }
 
-  function updateCounter() {
-    counter.textContent =
-      `${currentIndex + 1} / ${images.length}`;
-  }
+    function updateCounter() {
 
-  function shuffleArray(array) {
-    for (let i = array.length - 1; i > 0; i--) {
-
-      const j = Math.floor(Math.random() * (i + 1));
-
-      [array[i], array[j]] =
-      [array[j], array[i]];
+      counter.textContent =
+        `${currentIndex + 1} / ${images.length}`;
     }
-  }
 
-  startSlideshow();
-</script>
+    function shuffleArray(array) {
+
+      for (
+        let i = array.length - 1;
+        i > 0;
+        i--
+      ) {
+
+        const j =
+          Math.floor(
+            Math.random() * (i + 1)
+          );
+
+        [array[i], array[j]] =
+          [array[j], array[i]];
+      }
+    }
+
+    startSlideshow();
+
+  </script>
+
 </body>
 </html>
+```
