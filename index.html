@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Photo Slideshow</title>
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: #111;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+    }
+
+    .slideshow {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      background: #111;
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transition: opacity 1s ease-in-out;
+    }
+
+    .slide.active {
+      opacity: 1;
+      z-index: 2;
+    }
+
+    .slide img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .loading,
+    .error {
+      color: white;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    .dots {
+      position: absolute;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+      z-index: 10;
+    }
+
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.45);
+    }
+
+    .dot.active {
+      background: white;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="slideshow" id="slideshow">
+    <div class="loading">Loading slideshow...</div>
+  </div>
+
+  <script>
+    const SLIDE_TIME = 5000; // 5 seconds per image
+    let currentSlide = 0;
+    let slides = [];
+    let dots = [];
+
+    async function loadSlideshow() {
+      const slideshow = document.getElementById("slideshow");
+
+      try {
+        const response = await fetch("images.json");
+
+        if (!response.ok) {
+          throw new Error("Could not load images.json");
+        }
+
+        const images = await response.json();
+
+        if (!Array.isArray(images) || images.length === 0) {
+          throw new Error("No images found in images.json");
+        }
+
+        slideshow.innerHTML = "";
+
+        images.forEach((src, index) => {
+          const slide = document.createElement("div");
+          slide.className = "slide";
+
+          const img = document.createElement("img");
+          img.src = src;
+          img.alt = `Slideshow image ${index + 1}`;
+
+          slide.appendChild(img);
+          slideshow.appendChild(slide);
+        });
+
+        const dotsContainer = document.createElement("div");
+        dotsContainer.className = "dots";
+
+        images.forEach((_, index) => {
+          const dot = document.createElement("div");
+          dot.className = "dot";
+          dot.addEventListener("click", () => showSlide(index));
+          dotsContainer.appendChild(dot);
+        });
+
+        slideshow.appendChild(dotsContainer);
+
+        slides = document.querySelectorAll(".slide");
+        dots = document.querySelectorAll(".dot");
+
+        showSlide(0);
+
+        if (slides.length > 1) {
+          setInterval(nextSlide, SLIDE_TIME);
+        }
+
+      } catch (error) {
+        slideshow.innerHTML = `
+          <div class="error">
+            Slideshow could not be loaded.<br>
+            Check that images.json exists and the image paths are correct.
+          </div>
+        `;
+        console.error(error);
+      }
+    }
+
+    function showSlide(index) {
+      slides.forEach(slide => slide.classList.remove("active"));
+      dots.forEach(dot => dot.classList.remove("active"));
+
+      currentSlide = index;
+
+      slides[currentSlide].classList.add("active");
+      dots[currentSlide].classList.add("active");
+    }
+
+    function nextSlide() {
+      const next = (currentSlide + 1) % slides.length;
+      showSlide(next);
+    }
+
+    loadSlideshow();
+  </script>
+</body>
+</html>
