@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Photo Slideshow</title>
+  <title>Embedded Photo Slideshow</title>
 
   <style>
     html, body {
@@ -21,25 +21,28 @@
       width: 100vw;
       height: 100vh;
       background: #111;
+      overflow: hidden;
     }
 
-    .slide {
+    .slide-img {
       position: absolute;
       inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #111;
       opacity: 0;
-      transition: opacity 1s ease-in-out;
+      transition: opacity 350ms ease-in-out;
     }
 
-    .slide.active {
+    .slide-img.active {
       opacity: 1;
       z-index: 2;
     }
 
-    .slide img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
+    .slide-img.previous {
+      opacity: 1;
+      z-index: 1;
     }
 
     .loading,
@@ -54,26 +57,60 @@
       box-sizing: border-box;
     }
 
-    .dots {
+    .counter {
       position: absolute;
-      bottom: 14px;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      gap: 8px;
+      right: 14px;
+      bottom: 10px;
+      color: rgba(255,255,255,0.75);
+      background: rgba(0,0,0,0.35);
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 13px;
       z-index: 10;
     }
 
-    .dot {
-      width: 9px;
-      height: 9px;
-      border-radius: 50%;
-      background: rgba(255,255,255,0.45);
-    }
+    .nav-button {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 20;
 
-    .dot.active {
-      background: white;
-    }
+  width: 52px;
+  height: 52px;
+
+  border: none;
+  border-radius: 50%;
+
+  background: rgba(0,0,0,0.35);
+  color: white;
+
+  font-size: 26px;
+  cursor: pointer;
+
+  backdrop-filter: blur(4px);
+
+  transition: background 0.2s ease;
+}
+
+.nav-button:hover {
+  background: rgba(0,0,0,0.6);
+}
+
+.prev-button {
+  left: 14px;
+}
+
+.next-button {
+  right: 14px;
+}
+
+@media (max-width: 700px) {
+  .nav-button {
+    width: 44px;
+    height: 44px;
+    font-size: 22px;
+  }
+}
   </style>
 </head>
 
@@ -83,89 +120,221 @@
   </div>
 
   <script>
-    const SLIDE_TIME = 5000; // 5 seconds per image
-    let currentSlide = 0;
-    let slides = [];
-    let dots = [];
+  const IMAGE_JSON = "images.json";
 
-    async function loadSlideshow() {
-      const slideshow = document.getElementById("slideshow");
+  const SLIDE_TIME = 2200;
+  const FADE_TIME = 300;
+  const PRELOAD_AHEAD = 5;
 
-      try {
-        const response = await fetch("images.json");
+  let images = [];
+  let currentIndex = 0;
+  let showingA = true;
+  let slideshowInterval;
 
-        if (!response.ok) {
-          throw new Error("Could not load images.json");
-        }
+  let imgA;
+  let imgB;
+  let counter;
 
-        const images = await response.json();
+  async function startSlideshow() {
+    const slideshow = document.getElementById("slideshow");
 
-        if (!Array.isArray(images) || images.length === 0) {
-          throw new Error("No images found in images.json");
-        }
+    try {
+      const response = await fetch(IMAGE_JSON, {
+        cache: "no-store"
+      });
 
-        slideshow.innerHTML = "";
-
-        images.forEach((src, index) => {
-          const slide = document.createElement("div");
-          slide.className = "slide";
-
-          const img = document.createElement("img");
-          img.src = src;
-          img.alt = `Slideshow image ${index + 1}`;
-
-          slide.appendChild(img);
-          slideshow.appendChild(slide);
-        });
-
-        const dotsContainer = document.createElement("div");
-        dotsContainer.className = "dots";
-
-        images.forEach((_, index) => {
-          const dot = document.createElement("div");
-          dot.className = "dot";
-          dot.addEventListener("click", () => showSlide(index));
-          dotsContainer.appendChild(dot);
-        });
-
-        slideshow.appendChild(dotsContainer);
-
-        slides = document.querySelectorAll(".slide");
-        dots = document.querySelectorAll(".dot");
-
-        showSlide(0);
-
-        if (slides.length > 1) {
-          setInterval(nextSlide, SLIDE_TIME);
-        }
-
-      } catch (error) {
-        slideshow.innerHTML = `
-          <div class="error">
-            Slideshow could not be loaded.<br>
-            Check that images.json exists and the image paths are correct.
-          </div>
-        `;
-        console.error(error);
+      if (!response.ok) {
+        throw new Error("Could not load images.json");
       }
+
+      images = await response.json();
+
+      images = images
+        .map(item => typeof item === "string" ? item : item.image)
+        .filter(Boolean)
+        .filter(src =>
+          /\.(jpg|jpeg|png|gif|webp)$/i.test(src)
+        );
+
+      if (images.length === 0) {
+        throw new Error("No images found");
+      }
+
+      shuffleArray(images);
+
+      slideshow.innerHTML = "";
+
+      imgA = document.createElement("img");
+      imgB = document.createElement("img");
+
+      imgA.className = "slide-img active";
+      imgB.className = "slide-img";
+
+      slideshow.appendChild(imgA);
+      slideshow.appendChild(imgB);
+
+      counter = document.createElement("div");
+      counter.className = "counter";
+      slideshow.appendChild(counter);
+
+      createNavigationButtons(slideshow);
+
+      imgA.src = images[0];
+
+      updateCounter();
+      preloadUpcomingImages();
+
+      if (images.length > 1) {
+        startAutoSlide();
+      }
+
+      setupKeyboardControls();
+
+      setupClickControls(slideshow);
+
+    } catch (error) {
+      slideshow.innerHTML = `
+        <div class="error">
+          Slideshow could not be loaded.
+        </div>
+      `;
+
+      console.error(error);
     }
+  }
 
-    function showSlide(index) {
-      slides.forEach(slide => slide.classList.remove("active"));
-      dots.forEach(dot => dot.classList.remove("active"));
+  function createNavigationButtons(slideshow) {
+    const prevBtn = document.createElement("button");
+    prevBtn.innerHTML = "❮";
+    prevBtn.className = "nav-button prev-button";
 
-      currentSlide = index;
+    const nextBtn = document.createElement("button");
+    nextBtn.innerHTML = "❯";
+    nextBtn.className = "nav-button next-button";
 
-      slides[currentSlide].classList.add("active");
-      dots[currentSlide].classList.add("active");
+    prevBtn.addEventListener("click", () => {
+      previousSlide();
+      restartAutoSlide();
+    });
+
+    nextBtn.addEventListener("click", () => {
+      nextSlide();
+      restartAutoSlide();
+    });
+
+    slideshow.appendChild(prevBtn);
+    slideshow.appendChild(nextBtn);
+  }
+
+  function setupKeyboardControls() {
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowRight") {
+        nextSlide();
+        restartAutoSlide();
+      }
+
+      if (e.key === "ArrowLeft") {
+        previousSlide();
+        restartAutoSlide();
+      }
+    });
+  }
+
+  function setupClickControls(slideshow) {
+    slideshow.addEventListener("click", (e) => {
+
+      if (e.target.classList.contains("nav-button")) {
+        return;
+      }
+
+      const x = e.clientX;
+      const width = window.innerWidth;
+
+      if (x > width / 2) {
+        nextSlide();
+      } else {
+        previousSlide();
+      }
+
+      restartAutoSlide();
+    });
+  }
+
+  function startAutoSlide() {
+    slideshowInterval = setInterval(() => {
+      nextSlide();
+    }, SLIDE_TIME);
+  }
+
+  function restartAutoSlide() {
+    clearInterval(slideshowInterval);
+    startAutoSlide();
+  }
+
+  function nextSlide() {
+    currentIndex = (currentIndex + 1) % images.length;
+    changeSlide();
+  }
+
+  function previousSlide() {
+    currentIndex =
+      (currentIndex - 1 + images.length) % images.length;
+
+    changeSlide();
+  }
+
+  function changeSlide() {
+    const activeImg = showingA ? imgA : imgB;
+    const nextImg = showingA ? imgB : imgA;
+
+    nextImg.src = images[currentIndex];
+
+    nextImg.onload = () => {
+      activeImg.classList.remove("active");
+      activeImg.classList.add("previous");
+
+      nextImg.classList.remove("previous");
+      nextImg.classList.add("active");
+
+      setTimeout(() => {
+        activeImg.classList.remove("previous");
+      }, FADE_TIME);
+
+      showingA = !showingA;
+
+      updateCounter();
+      preloadUpcomingImages();
+    };
+  }
+
+  function preloadUpcomingImages() {
+    for (let i = 1; i <= PRELOAD_AHEAD; i++) {
+
+      const preloadIndex =
+        (currentIndex + i) % images.length;
+
+      const preloadImg = new Image();
+
+      preloadImg.src = images[preloadIndex];
     }
+  }
 
-    function nextSlide() {
-      const next = (currentSlide + 1) % slides.length;
-      showSlide(next);
+  function updateCounter() {
+    counter.textContent =
+      `${currentIndex + 1} / ${images.length}`;
+  }
+
+  function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+
+      const j = Math.floor(Math.random() * (i + 1));
+
+      [array[i], array[j]] =
+      [array[j], array[i]];
     }
+  }
 
-    loadSlideshow();
-  </script>
+  startSlideshow();
+</script>
 </body>
 </html>
